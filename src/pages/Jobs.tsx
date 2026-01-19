@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Filter, MapPin, Loader2 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { JobCard } from '@/components/JobCard';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Tables, Database } from '@/integrations/supabase/types';
 import {
   Select,
   SelectContent,
@@ -18,7 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const categories = [
+type JobCategory = Database['public']['Enums']['job_category'];
+
+// Define proper types for job data with relations
+type JobWithEmployer = Tables<'jobs'> & {
+  employer: Pick<Tables<'profiles'>, 'full_name' | 'rating' | 'is_verified'> | null;
+};
+
+const categories: { value: string; label: string }[] = [
   { value: 'all', label: 'All Categories' },
   { value: 'retail', label: '🛍️ Retail' },
   { value: 'restaurant', label: '🍽️ Restaurant' },
@@ -34,10 +42,19 @@ export default function Jobs() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<JobWithEmployer[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Debounce search input to prevent excessive filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -45,11 +62,7 @@ export default function Jobs() {
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    fetchJobs();
-  }, [selectedCategory]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     setLoadingJobs(true);
     try {
       let query = supabase
@@ -66,19 +79,28 @@ export default function Jobs() {
         .order('created_at', { ascending: false });
 
       if (selectedCategory !== 'all') {
-        query = query.eq('category', selectedCategory as any);
+        query = query.eq('category', selectedCategory as JobCategory);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      setJobs(data || []);
+      setJobs((data as unknown as JobWithEmployer[]) || []);
     } catch (error) {
       console.error('Error fetching jobs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load jobs. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setLoadingJobs(false);
     }
-  };
+  }, [selectedCategory, toast]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
 
   const handleAcceptJob = async (jobId: string) => {
     if (!profile) return;
@@ -111,11 +133,16 @@ export default function Jobs() {
     }
   };
 
-  const filteredJobs = jobs.filter((job) =>
-    job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.city.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter jobs using debounced search for better performance
+  const filteredJobs = useMemo(() => {
+    if (!debouncedSearch) return jobs;
+    const search = debouncedSearch.toLowerCase();
+    return jobs.filter((job) =>
+      job.title.toLowerCase().includes(search) ||
+      job.description.toLowerCase().includes(search) ||
+      job.city.toLowerCase().includes(search)
+    );
+  }, [jobs, debouncedSearch]);
 
   if (loading) {
     return (
@@ -138,7 +165,7 @@ export default function Jobs() {
           className="mb-6"
         >
           <h1 className="text-2xl font-bold mb-4">Find Jobs</h1>
-          
+
           <div className="flex gap-3 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />

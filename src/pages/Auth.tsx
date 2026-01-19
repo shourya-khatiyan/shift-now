@@ -74,9 +74,9 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) return;
-    
+
     setIsSubmitting(true);
 
     try {
@@ -167,11 +167,10 @@ export default function Auth() {
                 <button
                   type="button"
                   onClick={() => setRole('worker')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    role === 'worker'
+                  className={`p-4 rounded-xl border-2 transition-all ${role === 'worker'
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
-                  }`}
+                    }`}
                 >
                   <Users
                     size={24}
@@ -185,11 +184,10 @@ export default function Auth() {
                 <button
                   type="button"
                   onClick={() => setRole('employer')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    role === 'employer'
+                  className={`p-4 rounded-xl border-2 transition-all ${role === 'employer'
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
-                  }`}
+                    }`}
                 >
                   <Briefcase
                     size={24}

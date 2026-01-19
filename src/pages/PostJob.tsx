@@ -11,6 +11,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
 import {
   Select,
   SelectContent,
@@ -19,7 +20,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const categories = [
+type JobCategory = Database['public']['Enums']['job_category'];
+
+const categories: { value: JobCategory; label: string }[] = [
   { value: 'retail', label: '🛍️ Retail' },
   { value: 'restaurant', label: '🍽️ Restaurant' },
   { value: 'warehouse', label: '📦 Warehouse' },
@@ -85,16 +88,16 @@ export default function PostJob() {
         employer_id: profile.id,
         title: formData.title.trim(),
         description: formData.description.trim(),
-        category: formData.category as any,
+        category: formData.category as JobCategory,
         hourly_rate: parseFloat(formData.hourlyRate),
         duration_hours: parseInt(formData.durationHours),
         location_address: formData.locationAddress.trim(),
-        location_lat: 28.6139,
-        location_lng: 77.209,
+        location_lat: 28.6139, // TODO: Implement geocoding
+        location_lng: 77.209, // TODO: Implement geocoding
         city: formData.city.trim(),
         start_time: startDateTime.toISOString(),
-        status: 'open' as any,
-      } as any);
+        status: 'open',
+      });
 
       if (error) throw error;
 

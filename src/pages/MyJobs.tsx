@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Loader2, Briefcase, CheckCircle, Clock, XCircle } from 'lucide-react';
@@ -10,14 +10,48 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { Tables, Database } from '@/integrations/supabase/types';
+
+type JobStatus = Database['public']['Enums']['job_status'];
+
+// Use a more flexible type for job data with relations
+interface JobWithRelations {
+  id: string;
+  employer_id: string;
+  worker_id: string | null;
+  title: string;
+  description: string;
+  category: string;
+  hourly_rate: number;
+  duration_hours: number;
+  location_address: string;
+  location_lat: number;
+  location_lng: number;
+  city: string;
+  start_time: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  employer: {
+    full_name: string;
+    rating: number | null;
+    is_verified: boolean;
+  } | null;
+  worker: {
+    full_name: string;
+    rating: number | null;
+    is_verified: boolean;
+  } | null;
+}
 
 export default function MyJobs() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<JobWithRelations[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -25,13 +59,7 @@ export default function MyJobs() {
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    if (profile) {
-      fetchJobs();
-    }
-  }, [profile]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!profile) return;
 
     setLoadingJobs(true);
@@ -62,19 +90,32 @@ export default function MyJobs() {
       const { data, error } = await query;
 
       if (error) throw error;
-      setJobs(data || []);
+      // Cast to unknown first, then to our type to satisfy TypeScript
+      setJobs((data as unknown as JobWithRelations[]) || []);
     } catch (error) {
       console.error('Error fetching jobs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load your jobs. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setLoadingJobs(false);
     }
-  };
+  }, [profile, toast]);
 
-  const updateJobStatus = async (jobId: string, newStatus: string) => {
+  useEffect(() => {
+    if (profile) {
+      fetchJobs();
+    }
+  }, [profile, fetchJobs]);
+
+  const updateJobStatus = async (jobId: string, newStatus: JobStatus) => {
+    setActionLoading(jobId);
     try {
       const { error } = await supabase
         .from('jobs')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', jobId);
 
       if (error) throw error;
@@ -92,6 +133,8 @@ export default function MyJobs() {
         description: 'Failed to update status. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -107,7 +150,7 @@ export default function MyJobs() {
     );
   }
 
-  const renderJobs = (jobsList: any[]) => {
+  const renderJobs = (jobsList: JobWithRelations[]) => {
     if (loadingJobs) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -137,7 +180,7 @@ export default function MyJobs() {
         {jobsList.map((job, index) => (
           <div key={job.id}>
             <JobCard job={job} index={index} showAccept={false} />
-            
+
             {/* Action Buttons */}
             {profile?.role === 'employer' && job.status === 'accepted' && (
               <div className="flex gap-2 mt-2">
@@ -152,7 +195,7 @@ export default function MyJobs() {
                 </Button>
               </div>
             )}
-            
+
             {profile?.role === 'employer' && job.status === 'in_progress' && (
               <div className="flex gap-2 mt-2">
                 <Button

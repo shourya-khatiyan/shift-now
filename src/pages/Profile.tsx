@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Loader2, User, Star, MapPin, Phone, Mail, Camera, Shield, Briefcase, ArrowLeft } from 'lucide-react';
@@ -13,6 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export default function Profile() {
   const { profile, refreshProfile, loading } = useAuth();
@@ -22,11 +27,23 @@ export default function Profile() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    full_name: profile?.full_name || '',
-    phone: profile?.phone || '',
-    city: profile?.city || '',
-    bio: profile?.bio || '',
+    full_name: '',
+    phone: '',
+    city: '',
+    bio: '',
   });
+
+  // Sync form data when profile changes
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || '',
+        phone: profile.phone || '',
+        city: profile.city || '',
+        bio: profile.bio || '',
+      });
+    }
+  }, [profile]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -107,9 +124,19 @@ export default function Profile() {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <button className="absolute bottom-0 right-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center shadow-lg">
-                  <Camera size={16} className="text-primary-foreground" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="absolute bottom-0 right-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center shadow-lg opacity-50 cursor-not-allowed"
+                      disabled
+                    >
+                      <Camera size={16} className="text-primary-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Photo upload coming soon</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               <div className="flex-1">
@@ -125,11 +152,11 @@ export default function Profile() {
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Star size={14} className="text-secondary fill-secondary" />
-                    {profile.rating.toFixed(1)}
+                    {(profile.rating ?? 0).toFixed(1)}
                   </span>
                   <span className="flex items-center gap-1">
                     <Briefcase size={14} />
-                    {profile.total_jobs} jobs
+                    {profile.total_jobs ?? 0} jobs
                   </span>
                 </div>
               </div>
@@ -244,11 +271,11 @@ export default function Profile() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3 mt-6">
             <div className="bg-card rounded-2xl p-4 shadow-sm text-center">
-              <p className="text-2xl font-bold text-primary">{profile.total_jobs}</p>
+              <p className="text-2xl font-bold text-primary">{profile.total_jobs ?? 0}</p>
               <p className="text-xs text-muted-foreground">Total Jobs</p>
             </div>
             <div className="bg-card rounded-2xl p-4 shadow-sm text-center">
-              <p className="text-2xl font-bold text-secondary">{profile.rating.toFixed(1)}</p>
+              <p className="text-2xl font-bold text-secondary">{(profile.rating ?? 0).toFixed(1)}</p>
               <p className="text-xs text-muted-foreground">Rating</p>
             </div>
             <div className="bg-card rounded-2xl p-4 shadow-sm text-center">

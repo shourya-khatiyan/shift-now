@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Zap, Briefcase, Users, ArrowRight, MapPin, Clock, Shield } from 'lucide-react';
@@ -11,8 +11,14 @@ export default function Landing() {
   const { user, loading } = useAuth();
 
   // Redirect if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
+
+  // Prevent flashing content while checking auth
   if (!loading && user) {
-    navigate('/dashboard');
     return null;
   }
 

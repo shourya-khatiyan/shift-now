@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MapPin, Clock, IndianRupee, TrendingUp, Briefcase, Users, Plus, Search, Loader2 } from 'lucide-react';
@@ -9,12 +9,18 @@ import { JobCard } from '@/components/JobCard';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Tables } from '@/integrations/supabase/types';
+
+// Define proper types for job data with relations
+type JobWithEmployer = Tables<'jobs'> & {
+  employer: Pick<Tables<'profiles'>, 'full_name' | 'rating' | 'is_verified'> | null;
+};
 
 export default function Dashboard() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<JobWithEmployer[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [stats, setStats] = useState({
     totalJobs: 0,
@@ -28,13 +34,7 @@ export default function Dashboard() {
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    if (profile) {
-      fetchJobs();
-    }
-  }, [profile]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     setLoadingJobs(true);
     try {
       let query = supabase
@@ -53,23 +53,24 @@ export default function Dashboard() {
       if (profile?.role === 'worker') {
         query = query.eq('status', 'open');
       } else {
-        query = query.eq('employer_id', profile?.id);
+        query = query.eq('employer_id', profile?.id ?? '');
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      setJobs(data || []);
+      setJobs((data as unknown as JobWithEmployer[]) || []);
 
-      // Calculate stats
+      // Calculate stats for employers
       if (profile?.role === 'employer' && data) {
-        const completed = data.filter((j: any) => j.status === 'completed').length;
-        const totalEarnings = data
-          .filter((j: any) => j.status === 'completed')
-          .reduce((sum: number, j: any) => sum + (j.hourly_rate * j.duration_hours), 0);
-        
+        const jobsData = data as unknown as JobWithEmployer[];
+        const completed = jobsData.filter((j) => j.status === 'completed').length;
+        const totalEarnings = jobsData
+          .filter((j) => j.status === 'completed')
+          .reduce((sum, j) => sum + (j.hourly_rate * j.duration_hours), 0);
+
         setStats({
-          totalJobs: data.length,
+          totalJobs: jobsData.length,
           completedJobs: completed,
           earnings: totalEarnings,
         });
@@ -79,7 +80,13 @@ export default function Dashboard() {
     } finally {
       setLoadingJobs(false);
     }
-  };
+  }, [profile]);
+
+  useEffect(() => {
+    if (profile) {
+      fetchJobs();
+    }
+  }, [profile, fetchJobs]);
 
   const handleAcceptJob = async (jobId: string) => {
     if (!profile) return;
@@ -155,14 +162,14 @@ export default function Dashboard() {
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
               <Briefcase size={20} className="text-primary" />
             </div>
-            <p className="text-2xl font-bold">{profile.total_jobs}</p>
+            <p className="text-2xl font-bold">{profile.total_jobs ?? 0}</p>
             <p className="text-xs text-muted-foreground">Total Jobs</p>
           </div>
           <div className="bg-card rounded-2xl p-4 shadow-sm">
             <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center mb-2">
               <TrendingUp size={20} className="text-success" />
             </div>
-            <p className="text-2xl font-bold">{profile.rating.toFixed(1)}</p>
+            <p className="text-2xl font-bold">{(profile.rating ?? 0).toFixed(1)}</p>
             <p className="text-xs text-muted-foreground">Rating</p>
           </div>
           <div className="bg-card rounded-2xl p-4 shadow-sm">
